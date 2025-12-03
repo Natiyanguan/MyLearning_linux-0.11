@@ -11,6 +11,11 @@
  * the page directory will exist. The startup code will be overwritten by
  * the page directory.
  */
+
+ /*（head.s 作为开头，与各种 .c 和其他 .s 等文件一起）
+ *  编译并链接成 system，放在硬盘的随后 240 个扇区
+ */
+
 .text
 .globl idt,gdt,pg_dir,tmp_floppy_area
 pg_dir:

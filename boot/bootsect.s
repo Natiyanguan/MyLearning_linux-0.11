@@ -22,6 +22,8 @@ SYSSIZE = 0x3000
 ! read errors will result in a unbreakable loop. Reboot by hand. It
 ! loads pretty fast by getting whole sectors at a time whenever possible.
 
+! 把 bootsect.s 编译成 bootsect 放在硬盘的 1 扇区；
+
 .globl begtext, begdata, begbss, endtext, enddata, endbss
 .text
 begtext:
@@ -31,7 +33,9 @@ begdata:
 begbss:
 .text
 
-SETUPLEN = 4				! nr of setup-sectors
+SETUPLEN = 4				! number of setup-sectors
+! 这里是有历史因素的，x86 为了让自己在 16 位的实模式下，能访问到 20 位的地址线，所以要把段基址先左移四位。
+! 0x07c0 左移四位就是 0x7c00，这刚好就和这段代码被 BIOS 加载到的内存地址 0x7c00 一样了
 BOOTSEG  = 0x07c0			! original address of boot-sector
 INITSEG  = 0x9000			! we move boot here - out of the way
 SETUPSEG = 0x9020			! setup starts here
@@ -45,40 +49,45 @@ ROOT_DEV = 0x306
 entry _start
 _start:
 	mov	ax,#BOOTSEG
-	mov	ds,ax
+	mov	ds,ax           ! ds = 0x07c0       从ds 复制到es
 	mov	ax,#INITSEG
-	mov	es,ax
-	mov	cx,#256
-	sub	si,si
-	sub	di,di
-	rep
-	movw
-	jmpi	go,INITSEG
-go:	mov	ax,cs
-	mov	ds,ax
-	mov	es,ax
+	mov	es,ax           ! es = 0x9000
+	mov	cx,#256         ! cx = 256  重复执行次数
+	sub	si,si           ! si = 0
+	sub	di,di           ! di = 0
+	rep                 ! rep 会让紧随其后的指令重复执行 cx 寄存器指定的次数
+	movw                ! 移动数据16位 2个字节
+	jmpi	go,INITSEG  ! 段基址仍然要先左移四位再加上偏移地址，段基址 0x9000 左移四位就是 0x90000，因此结论就是跳转到 0x90000 + go 这个内存地址处执行
+	                    ! 等同于 cs = 0x9000 ip = go
+! go 就是一个标签
+go:	mov	ax,cs           ! code segment 代码段 CPU 即将要执行的代码在内存中的位置，就是由 cs:ip 这组寄存器配合指向的，其中 cs 是基址，ip 是偏移地址
+	mov	ds,ax           ! data segment 数据段 ds 是数据段寄存器，作为访问内存数据时的基地址
+	                    ! 访问代码和访问数据的规划方式，就是设置了一个基址
+	mov	es,ax           ! extension segment 附加段
 ! put stack at 0x9ff00.
-	mov	ss,ax
-	mov	sp,#0xFF00		! arbitrary value >>512
+	mov	ss,ax           ! ss 是栈段寄存器，后面要配合栈指针寄存器 sp 来表示此时的栈顶地址
+	mov	sp,#0xFF00		! arbitrary value >>512     ! ss:sp 所指向的地址 0x9FF00 = 0x9000 << 4 + 0xff00
+	                    ! 访问栈就是把栈顶指针，指向了一个远离代码位置的地方
 
 ! load the setup-sectors directly after the bootblock.
 ! Note that 'es' is already set up.
 
 load_setup:
 	mov	dx,#0x0000		! drive 0, head 0
-	mov	cx,#0x0002		! sector 2, track 0
+	mov	cx,#0x0002		! sector 2, track 0     硬盘的第 2 个扇区 一个扇区512 字节
 	mov	bx,#0x0200		! address = 512, in INITSEG
-	mov	ax,#0x0200+SETUPLEN	! service 2, nr of sectors
-	int	0x13			! read it
-	jnc	ok_load_setup		! ok - continue
-	mov	dx,#0x0000
-	mov	ax,#0x0000		! reset the diskette
-	int	0x13
+	mov	ax,#0x0200+SETUPLEN	! service 2, number of sectors
+	int	0x13			! read it 发起 0x13 号中断 0x13 号中断的处理程序，是 BIOS 提前给我们写好的，具体就是读取磁盘的相关功能的函数
+	                    ! CPU 就会通过这个中断号 0x13，去寻找对应的中断处理程序的入口地址，并跳转过去执行，逻辑上就相当于执行了一个函数
+	jnc	ok_load_setup		! ok - continue     成功则跳转到 ok_load_setup
+	mov	dx,#0x0000      ! 重置软盘
+	mov	ax,#0x0000		! 不成功则 reset the diskette
+	int	0x13            ! 失败，则会不断重复执行这段代码，也就是重试。
 	j	load_setup
 
 ok_load_setup:
 
-! Get disk drive parameters, specifically nr of sectors/track
+! Get disk drive parameters, specifically number of sectors/track       获取磁盘驱动器的参数
 
 	mov	dl,#0x00
 	mov	ax,#0x0800		! AH=8 is get drive parameters
@@ -89,7 +98,7 @@ ok_load_setup:
 	mov	ax,#INITSEG
 	mov	es,ax
 
-! Print some inane message
+! Print some inane message  打印消息
 
 	mov	ah,#0x03		! read cursor pos
 	xor	bh,bh
@@ -106,7 +115,7 @@ ok_load_setup:
 
 	mov	ax,#SYSSEG
 	mov	es,ax		! segment of 0x010000
-	call	read_it
+	call	read_it     ! 把从硬盘第 6 个扇区开始往后的 240 个扇区，加载到内存 0x10000 处
 	call	kill_motor
 
 ! After that we check which root-device to use. If the device is
@@ -136,7 +145,7 @@ root_defined:
 ! the setup-routine loaded directly after
 ! the bootblock:
 
-	jmpi	0,SETUPSEG
+	jmpi	0,SETUPSEG      ! 转移到 SETUPSEG 段的偏移地址 0 处开始执行
 
 ! This routine loads the system at address 0x10000, making sure
 ! no 64kB boundaries are crossed. We try to load it as fast as
