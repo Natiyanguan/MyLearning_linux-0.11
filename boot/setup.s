@@ -142,11 +142,12 @@ do_move:
 end_move:
 	mov	ax,#SETUPSEG	! right, forgot this at first. didn't work :-)
 	mov	ds,ax
-	lidt	idt_48		! load idt with 0,0
-	lgdt	gdt_48		! load gdt with whatever appropriate lgdt 就表示把后面的值（gdt_48）放在 gdtr 寄存器中
+	lidt	idt_48		! load idt with 0,0                     ! 中断描述符表，其原理和全局描述符表一样。
+	                    ! 发生中断时，CPU 会拿着中断号从中断描述符表里寻找中断处理程序的地址，找到以后，就会跳转到相应的中断程序去执行。
+	lgdt	gdt_48		! load gdt with whatever appropriate    ! lgdt 就表示把后面的值（gdt_48）放在 gdtr 寄存器中
 	! CPU 全局描述符表（gdt）
 
-! that was painless, now we enable A20
+! that was painless, now we enable A20  ! 8086 CPU 只有 20 位的地址线
 
 	call	empty_8042
 	mov	al,#0xD1		! command write
@@ -190,7 +191,7 @@ end_move:
 	out	#0x21,al
 	.word	0x00eb,0x00eb
 	out	#0xA1,al
-
+    ! 按下键盘会触发一个 0x21 号中断
 ! well, that certainly wasn't fun :-(. Hopefully it works, and we don't
 ! need no steenking BIOS anyway (except for the initial loading :-).
 ! The BIOS-routine wants lots of unnecessary data, and it's less
@@ -200,10 +201,15 @@ end_move:
 ! things as simple as possible, we do no register set-up or anything,
 ! we let the gnu-compiled 32-bit programs do that. We just jump to
 ! absolute address 0x00000, in 32-bit protected mode.
-	mov	ax,#0x0001	! protected mode (PE) bit
-	lmsw	ax		! This is it!
-	jmpi	0,8		! jmp offset 0 of segment 8 (cs)
-
+	mov	ax,#0x0001	! protected mode (PE) bit   ! cr0 这个寄存器的位 0 置 1，模式就从实模式切换到保护模式了
+	lmsw	ax		! This is it!               !
+	jmpi	0,8		! jmp offset 0 of segment 8 (cs)    ! 等价于 cs = 8 ip = 0
+	对应段选择子的结构图
+	|             描述符索引                | TI | RPL/CPL |
+    15 14 13 12 11 10  9  8  7  6  5  4  3   2    1  0
+    0   0  0  0  0  0  0  0  0  0  0  0  1   0    0  0      ! 二进制的8，对应描述符索引值是 1，也就是 CPU 要去全局描述符表（gdt）中找索引 1 的描述符
+    ！对应gdt中两段8Mb第一项被表示为代码段描述符，是个可读可执行的段，第二项为数据段描述符，是个可读可写段，不过他们的段基址都是 0
+    ！ 段基址是 0，偏移也是 0，那加一块就还是 0 。那么最终这个跳转指令，就是跳转到内存地址的 0 地址处，开始执行 -> 从 0到0x80000是 512k的system
 ! This routine checks that the keyboard command queue is empty
 ! No timeout is used - if this hangs there is something wrong with
 ! the machine, and we probably couldn't proceed anyway.
@@ -215,17 +221,19 @@ empty_8042:
 	ret
 
 gdt:
-	.word	0,0,0,0		! dummy
+	.word	0,0,0,0		! dummy 第一个为空
 
-	.word	0x07FF		! 8Mb - limit=2047 (2048*4096=8Mb)
-	.word	0x0000		! base address=0
+	.word	0x07FF		! 8Mb - limit=2047 (2048*4096=8Mb) 第二个是代码段描述符（type=code）
+	.word	0x0000		! base address=0 段基址为0
 	.word	0x9A00		! code read/exec
 	.word	0x00C0		! granularity=4096, 386
 
-	.word	0x07FF		! 8Mb - limit=2047 (2048*4096=8Mb)
-	.word	0x0000		! base address=0
+	.word	0x07FF		! 8Mb - limit=2047 (2048*4096=8Mb) 第三个是数据段描述符（type=data）
+	.word	0x0000		! base address=0 段基址为0
 	.word	0x9200		! data read/write
 	.word	0x00C0		! granularity=4096, 386
+	! 第二个和第三个段描述符的段基址都是 0，也就是之后在逻辑地址转换物理地址的时候，通过段选择子查找到无论是代码段还是数据段，取出的段基址都是 0
+	! 那么物理地址将直接等于程序员给出的逻辑地址（准确说是逻辑地址中的偏移地址）
 
 idt_48:
 	.word	0			! idt limit=0
