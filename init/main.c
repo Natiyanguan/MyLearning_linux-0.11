@@ -125,7 +125,7 @@ static void time_init(void)
 		time.tm_mday = CMOS_READ(7);
 		time.tm_mon = CMOS_READ(8);
 		time.tm_year = CMOS_READ(9);
-	} while (time.tm_sec != CMOS_READ(0));
+	} while (time.tm_sec != CMOS_READ(0));		// 理想情况下最多循环2次
 	BCD_TO_BIN(time.tm_sec);
 	BCD_TO_BIN(time.tm_min);
 	BCD_TO_BIN(time.tm_hour);

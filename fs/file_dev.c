@@ -31,7 +31,9 @@ int file_read(struct m_inode * inode, struct file * filp, char * buf, int count)
 	if ((left=count)<=0)
 		return 0;
 	while (left) {
-		if ((nr = bmap(inode,(filp->f_pos)/BLOCK_SIZE))) {
+        // bmap() 函数将逻辑块号转换为实际的物理块号(nr)
+		if ((nr = bmap(inode,(filp->f_pos)/BLOCK_SIZE))) {	//(filp->f_pos)/BLOCK_SIZE 计算当前文件读写指针所在的逻辑块号
+			// 如果bmap返回有效的物理块号，则使用bread()从设备(inode->i_dev)上读取该块到缓冲区(bh)
 			if (!(bh=bread(inode->i_dev,nr)))
 				break;
 		} else
@@ -45,6 +47,7 @@ int file_read(struct m_inode * inode, struct file * filp, char * buf, int count)
 		chars = MIN( BLOCK_SIZE-nr , left );
 		filp->f_pos += chars;
 		left -= chars;
+        // put_fs_byte()函数负责将内核空间的一个字节复制到用户空间
         // 若上面从设备上读到了数据，则将p指向缓冲块中开始读取数据的位置，并且复制chars
         // 字节到用户缓冲区buf中。否则往用户缓冲区中填入chars个0值字节。
 		if (bh) {

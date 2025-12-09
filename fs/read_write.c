@@ -85,6 +85,11 @@ int sys_read(unsigned int fd,char * buf,int count)
     // 函数首先对参数有效性进行判断。如果文件句柄值大于程序最多打开文件数NR_OPEN，
     // 或者需要读取的字节计数值小于0，或者该句柄的文件结构指针为空，则返回出错码并
     // 退出。若需读取的字节数count等于0，则返回0退出。
+
+	//current - 这是指向当前运行进程的进程控制块（task_struct）的指针。在Linux 0.11中，current指向当前正在执行的进程的task_struct结构。
+	//filp - 这是task_struct结构中的一个数组成员，定义为struct file * filp[NR_OPEN];，是一个文件结构指针数组。每个进程都有这样一个数组，用来保存该进程打开的所有文件的信息。
+	//fd - 这是文件描述符（file descriptor），是一个非负整数，代表进程打开的文件。文件描述符是进程级的，通常0、1、2分别代表标准输入、标准输出和标准错误。
+	//filp[fd] - 通过文件描述符作为索引，从文件指针数组中取出对应的file结构体指针。
 	if (fd>=NR_OPEN || count<0 || !(file=current->filp[fd]))
 		return -EINVAL;
 	if (!count)

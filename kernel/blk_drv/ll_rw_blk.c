@@ -66,12 +66,12 @@ static void add_request(struct blk_dev_struct * dev, struct request * req)
 	struct request * tmp;
 
 	req->next = NULL;
-	cli();
+	cli();			// close interrupts
 	if (req->bh)
 		req->bh->b_dirt = 0;
 	if (!(tmp = dev->current_request)) {
 		dev->current_request = req;
-		sti();
+		sti();		// start interrupts
 		(dev->request_fn)();
 		return;
 	}

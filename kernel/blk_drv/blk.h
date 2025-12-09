@@ -24,12 +24,12 @@ struct request {
 	int dev;		/* -1 if no request */
 	int cmd;		/* READ or WRITE */
 	int errors;
-	unsigned long sector;
-	unsigned long nr_sectors;
-	char * buffer;
+	unsigned long sector;		// 起始扇区号
+	unsigned long nr_sectors;		// number of sectors to read/write
+	char * buffer;		// 数据缓冲区，也就是读盘之后的数据放在内存中的什么位置
 	struct task_struct * waiting;
 	struct buffer_head * bh;
-	struct request * next;
+	struct request * next;		// 指向下一个读写块设备请求
 };
 
 /*

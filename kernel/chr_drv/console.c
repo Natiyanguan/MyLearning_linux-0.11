@@ -645,6 +645,7 @@ void con_init(void)
     // 索引端口号和显示寄存器数据端口号。如果原始显示模式等于7，则表示是单色显示器。
 	if (ORIG_VIDEO_MODE == 7)			/* Is this a monochrome display? */
 	{
+        // 显存映射的内存区域
 		video_mem_start = 0xb0000;      // 设置单显映象内存起始地址
 		video_port_reg = 0x3b4;         // 设置单显索引寄存器端口
 		video_port_val = 0x3b5;         // 设置单显数据寄存器端口
