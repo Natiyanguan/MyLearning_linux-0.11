@@ -562,8 +562,9 @@ void sched_init(void)
     // 中；gdt是一个描述符表数组(include/linux/head.h)，实际上对应程序head.s中
     // 全局描述符表基址（_gdt）.因此gtd+FIRST_TSS_ENTRY即为gdt[FIRST_TSS_ENTRY](即为gdt[4]),
     // 也即gdt数组第4项的地址。
-	set_tss_desc(gdt+FIRST_TSS_ENTRY,&(init_task.task.tss));
-	set_ldt_desc(gdt+FIRST_LDT_ENTRY,&(init_task.task.ldt));
+    // 进程0的代码
+	set_tss_desc(gdt+FIRST_TSS_ENTRY,&(init_task.task.tss));			// task state segment 用于保存和恢复进程的上下文，即各个寄存器的信息
+	set_ldt_desc(gdt+FIRST_LDT_ENTRY,&(init_task.task.ldt));			// local descriptor table 局部描述符表
     // 清任务数组和描述符表项(注意 i=1 开始，所以初始任务的描述符还在)。描述符项结构
     // 定义在文件include/linux/head.h中。
 	p = gdt+2+FIRST_TSS_ENTRY;
@@ -578,8 +579,8 @@ void sched_init(void)
     // NT标志用于控制程序的递归调用(Nested Task)。当NT置位时，那么当前中断任务执行
     // iret指令时就会引起任务切换。NT指出TSS中的back_link字段是否有效。
 	__asm__("pushfl ; andl $0xffffbfff,(%esp) ; popfl");        // 复位NT标志
-	ltr(0);
-	lldt(0);
+	ltr(0);		// ltr 是给 tr 寄存器赋值，以告诉 CPU 任务状态段 TSS 在内存的位置
+	lldt(0);	// lldt 一个是给 ldt 寄存器赋值，以告诉 CPU 局部描述符 LDT 在内存的位置
     // 下面代码用于初始化8253定时器。通道0，选择工作方式3，二进制计数方式。通道0的
     // 输出引脚接在中断控制主芯片的IRQ0上，它每10毫秒发出一个IRQ0请求。LATCH是初始
     // 定时计数值。
@@ -589,7 +590,9 @@ void sched_init(void)
     // 设置时钟中断处理程序句柄(设置时钟中断门)。修改中断控制器屏蔽码，允许时钟中断。
     // 然后设置系统调用中断门。这两个设置中断描述符表IDT中描述符在宏定义在文件
     // include/asm/system.h中。
-	set_intr_gate(0x20,&timer_interrupt);
+	set_intr_gate(0x20,&timer_interrupt);		// 时钟中断，中断号为 0x20，中断处理程序为 timer_interrupt
 	outb(inb_p(0x21)&~0x01,0x21);
-	set_system_gate(0x80,&system_call);
+	set_system_gate(0x80,&system_call);			// 系统调用 system_call，中断号是 0x80  // 所有用户态程序想要调用内核提供的方法，都需要基于这个系统调用来进行
+	// 操作系统实际上就是一个靠中断驱动的死循环，各个模块不断初始化各种中断处理函数，并且开启指定的外设开关，成为了一个不断等待或忙碌于各种中断的存在
+
 }

@@ -77,7 +77,7 @@ struct tss_struct {
 	struct i387_struct i387;
 };
 
-struct task_struct {
+struct task_struct {		// 代表每一个进程的信息
 /* these are hardcoded - don't touch */
 	long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	long counter;
